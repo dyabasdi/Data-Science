@@ -2,6 +2,7 @@ import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 def preprocessdata(file_path: str) -> pd.DataFrame:
     '''
@@ -32,12 +33,16 @@ def create_model(df: pd.DataFrame):
     # train linear regression model
     model = LinearRegression()
     model.fit(x_train, y_train)
-
-    return model, x
+    
+    # test performance
+    y_pred = model.predict(x_test)
+    mae = mean_absolute_error(y_test, y_pred)
+    mse = mean_squared_error(y_test, y_pred)
+    return model, x, mae, mse
 
 def get_inputs(x) -> pd.DataFrame:
     '''
-    Get user inputs for scenario to predict restraunt tips.
+    Get user inputs for scenario to predict restaurant tips.
     '''
     # Get user input
     while True:
@@ -105,7 +110,7 @@ def get_inputs(x) -> pd.DataFrame:
 
     return inputs
 
-def predict_restraunt_tip(model, inputs: pd.DataFrame) -> list[float, float]:
+def predict_restaurant_tip(model, inputs: pd.DataFrame) -> list[float, float]:
     '''
     Use model to predict tips for that scenario.
     '''
@@ -115,12 +120,20 @@ def predict_restraunt_tip(model, inputs: pd.DataFrame) -> list[float, float]:
     return [predicted_tip_amount, predicted_tip_percent[0]]
 
 if __name__ == "__main__":
+    
     script_dir = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(script_dir, "tips.csv")
-    threshold = 0.02 # pct as decimal
     df = preprocessdata(file_path)
-    model, x = create_model(df)
+    
+    # create linear regression model
+    model, x, mae, mse = create_model(df)
+    
+    # output performance metrics
+    print(f"Model Performance:\nMAE: {mae:.2f}%, MSE: {mse:.2f}%")
+    
+    # user inputs + predictions
     inputs = get_inputs(x)
-    predictions = predict_restraunt_tip(model, inputs)
+    predictions = predict_restaurant_tip(model, inputs)
+    
     print(f"Predicted Tip Percentage: {predictions[1]:.2f}%")
     print(f"Predicted Tip Amount: ${predictions[0]:.2f}")
