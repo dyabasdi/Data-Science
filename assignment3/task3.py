@@ -1,10 +1,16 @@
 import pandas as pd
-from sklearn.linear_model import LinearRegression
+from sklearn.tree import DecisionTreeRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import LabelEncoder
 import os
-import matplotlib.pyplot as plt
+import numpy as np
+
+class Model:
+    def __init__(self, mae = 100, nodes = None, split = None):
+        self.mae = mae
+        self.nodes = nodes
+        self.split = split
 
 def preprocess_data(file_path: str) -> pd.DataFrame:
     '''
@@ -14,67 +20,53 @@ def preprocess_data(file_path: str) -> pd.DataFrame:
     # remove all data points that have a NaN values and also duplicates
     df = df.dropna()
     df = df.drop_duplicates()
+
+    # apply label encoder for columns with strings
+    label_encoder = LabelEncoder()
+    string_columns = df.select_dtypes(include=['object']).columns.tolist()
+    for column in string_columns:
+        df[column] = label_encoder.fit_transform(df[column])
+
     return df
-def split_data(df, categories=['h', 'u', 't']) -> list:
+
+def optimization_sweep(df: pd.DataFrame, leaf_nodes: list, trainsplit: list) -> object:
     '''
-    Splits data into house, apartment, townhouse.
+    Returns the number of leaf nodes and train split that gives us the smallest mean absolute error.
     '''
-    data = []
-    for i in range(len(categories)):    
-        data.append(df[df['Type'] == categories[i]])
-    
-    return data
-def remove_outliers(df, columns, quantile=0.99) -> pd.DataFrame:
-    '''
-    Removes outliers from specified columns in the pandas dataframe.
-    '''
-    for column in columns:
-        threshold = df[column].quantile(quantile)
-        df = df[df[column] < threshold]
-    return df
-def create_regression_model(df, columns) -> dict:
-    '''
-    Create's regression model for a given column.
-    Returns a dictionary with the model and MAE for the column.
-    '''
-    X_train, X_test, y_train, y_test = train_test_split(df[columns], df['Price'], test_size=0.2, random_state=42)
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-    model = LinearRegression()
-    model.fit(X_train_scaled, y_train)
-    y_pred = model.predict(X_test_scaled)
-    mae = mean_absolute_error(y_test, y_pred)
-    mae_percentage = (mae / y_test.mean()) * 100
-    regression_model =  {
-                        'Model': model,
-                        'MAE': mae_percentage,
-                        'Prediction': y_pred
-                        }
-    return regression_model
+    best_model = Model()
+    for nodes in leaf_nodes:
+        for split in trainsplit:
+            
+            mdl = DecisionTreeRegressor(max_leaf_nodes= nodes)
+            
+            # split data
+            X = df.drop(columns=['Address', 'Price', 'Propertycount'])
+            # X = df[['Rooms', 'Distance', 'Bedroom2', 'Bathroom', 'Car', 'Landsize', 'BuildingArea', 'YearBuilt', 'Lattitude', 'Longtitude']]
+            y = df['Price']
+            X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=split, random_state=1)
+
+            # create fit of model
+            mdl.fit(X_train, y_train)
+
+            # predict data
+            y_pred = mdl.predict(X_test)
+
+            # get mean absolute error between test and predict
+            mae_raw = mean_absolute_error(y_test, y_pred)
+            mean_test = np.mean(y)
+            mae = (mae_raw/mean_test) * 100
+            curr_model = Model(mae, nodes, split)
+            
+            if curr_model.mae < best_model.mae:
+                best_model = curr_model
+
+    return best_model
 
 if __name__ == "__main__":
-    column_models = [
-                    'Bathroom',
-                    'Bedroom2',
-                    'BuildingArea',
-                    ]
-    outlier_models = column_models
-    outlier_models.append('YearBuilt')
-    outlier_models.append('Landsize')
-    outlier_models.append('Rooms')
     script_dir = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(script_dir, "house_prices.csv")
     df = preprocess_data(file_path)
-    data = split_data(df)
-    for new_df in data:
-        new_df = remove_outliers(new_df, outlier_models, quantile=0.90)
-        model = create_regression_model(df, column_models)
-        
-        # for debugging and tuning
-        try:
-            assert model['MAE'] < 15
-            print(f" MAE is {model['MAE']:.2f}%, which is less than 15%!")
-        except:
-            print(f" MAE is {model['MAE']:.2f}%, which is more than 15%!")
-    
+    leaf_nodes_sweep = np.linspace(400, 700, 1).astype(int)
+    trainsplit_sweep = np.linspace(0.50, 0.95, 10)
+    model = optimization_sweep(df, leaf_nodes_sweep, trainsplit_sweep)
+    print(f"Optimal Model:\n   Mean Absolute Error = {model.mae}%\n   Training Split = {round(model.split * 100)}% Train, {round((1 - model.split)*100)}% Test\n   Leaf Nodes = {model.nodes}")
