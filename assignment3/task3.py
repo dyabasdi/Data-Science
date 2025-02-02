@@ -6,12 +6,6 @@ from sklearn.preprocessing import LabelEncoder
 import os
 import numpy as np
 
-class Model:
-    def __init__(self, mae = 100, nodes = None, split = None):
-        self.mae = mae
-        self.nodes = nodes
-        self.split = split
-
 def preprocess_data(file_path: str) -> pd.DataFrame:
     '''
     Preprocess and clean the data in a pandas dataframe.
@@ -33,15 +27,14 @@ def optimization_sweep(df: pd.DataFrame, leaf_nodes: list, trainsplit: list) -> 
     '''
     Returns the number of leaf nodes and train split that gives us the smallest mean absolute error.
     '''
-    best_model = Model()
+    mae = 100
     for nodes in leaf_nodes:
         for split in trainsplit:
-            
+            prev_mae = mae
             mdl = DecisionTreeRegressor(max_leaf_nodes= nodes)
             
             # split data
             X = df.drop(columns=['Address', 'Price', 'Propertycount'])
-            # X = df[['Rooms', 'Distance', 'Bedroom2', 'Bathroom', 'Car', 'Landsize', 'BuildingArea', 'YearBuilt', 'Lattitude', 'Longtitude']]
             y = df['Price']
             X_train, X_test, y_train, y_test = train_test_split(X, y, train_size=split, random_state=1)
 
@@ -55,10 +48,9 @@ def optimization_sweep(df: pd.DataFrame, leaf_nodes: list, trainsplit: list) -> 
             mae_raw = mean_absolute_error(y_test, y_pred)
             mean_test = np.mean(y)
             mae = (mae_raw/mean_test) * 100
-            curr_model = Model(mae, nodes, split)
             
-            if curr_model.mae < best_model.mae:
-                best_model = curr_model
+            if mae < prev_mae:
+                best_model = [mae, split, nodes]
 
     return best_model
 
@@ -66,7 +58,7 @@ if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
     file_path = os.path.join(script_dir, "house_prices.csv")
     df = preprocess_data(file_path)
-    leaf_nodes_sweep = np.linspace(400, 700, 1).astype(int)
+    leaf_nodes_sweep = np.arange(650, 800, 5)
     trainsplit_sweep = np.linspace(0.50, 0.95, 10)
     model = optimization_sweep(df, leaf_nodes_sweep, trainsplit_sweep)
-    print(f"Optimal Model:\n   Mean Absolute Error = {model.mae}%\n   Training Split = {round(model.split * 100)}% Train, {round((1 - model.split)*100)}% Test\n   Leaf Nodes = {model.nodes}")
+    print(f"Optimal Model:\n   Mean Absolute Error = {model[0]:.2f}%\n   Training Split = {round(model[1] * 100)}% Train, {round((1 - model[1])*100)}% Test\n   Leaf Nodes = {model[2]}")
