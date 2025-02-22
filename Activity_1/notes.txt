@@ -1,0 +1,6 @@
+Notes for Activity 1:
+
+- Don't use MAE for classification model
+- Make sure to use the tree with regression or classification
+- Submit CSV of data and ipynb of code
+- In general, ROC or AUC score above 70% ish
